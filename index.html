@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Détection de Mouvement par Caméra</title>
+    <title>1, 2, 3 Soleil - Jeu de Détection de Mouvement</title>
     <style>
         body {
             display: flex;
@@ -23,6 +23,8 @@
         p {
             color: #34495e;
             margin-bottom: 20px;
+            text-align: center;
+            max-width: 800px;
         }
         #videoElement {
             width: 640px; /* Taille d'affichage de la vidéo */
@@ -37,45 +39,111 @@
         #hiddenCanvas {
             display: none; /* Le canvas est utilisé pour le traitement, pas pour l'affichage */
         }
-        .status-message {
+        .game-status {
             margin-top: 10px;
             font-weight: bold;
+            font-size: 1.5em;
             color: #34495e; /* Couleur de texte par défaut */
             transition: color 0.3s ease-in-out; /* Animation pour le changement de couleur */
-        }
-        .alert-active {
-            border-color: #e74c3c !important; /* Bordure rouge pour l'alerte */
+            min-height: 1.5em; /* Ensure consistent height */
         }
         .status-alert {
-            color: #e74c3c !important; /* Texte rouge pour l'alerte */
+            color: #e74c3c !important; /* Texte rouge pour l'alerte (perdu) */
+        }
+        .status-win {
+            color: #27ae60 !important; /* Texte vert pour la victoire */
+        }
+        .status-counting {
+            color: #f39c12 !important; /* Texte orange pour le compte à rebours */
+        }
+        .game-buttons button {
+            padding: 15px 30px;
+            font-size: 1.2em;
+            margin: 10px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+        #startButton {
+            background-color: #28a745; /* Vert */
+            color: white;
+        }
+        #startButton:hover {
+            background-color: #218838;
+        }
+        #startButton:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        #playerActionButton {
+            background-color: #007bff; /* Bleu */
+            color: white;
+            display: none; /* Hidden by default */
+        }
+        #playerActionButton:hover {
+            background-color: #0056b3;
+        }
+        #playerActionButton:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        .game-over-border {
+            border-color: #e74c3c !important; /* Rouge pour perdu */
+        }
+        .game-win-border {
+            border-color: #27ae60 !important; /* Vert pour gagné */
+        }
+        .default-border {
+            border-color: #3498db !important; /* Bordure bleue par défaut */
         }
     </style>
 </head>
 <body>
-    <h1>Détection de Mouvement</h1>
-    <p>Veuillez autoriser l'accès à votre caméra pour démarrer la détection.</p>
-    <video id="videoElement" autoplay muted></video>
+    <h1>1, 2, 3 Soleil !</h1>
+    <p>Le but du jeu est simple : quand "Soleil !" est prononcé, vous devez appuyer sur le bouton "J'ai arrêté !" en restant parfaitement immobile. Si un mouvement est détecté ou si vous n'appuyez pas à temps, c'est perdu !</p>
+    <video id="videoElement" autoplay muted class="default-border"></video>
     <canvas id="hiddenCanvas"></canvas>
-    <div id="status" class="status-message"></div>
-
-    <!-- Élément audio pour l'alerte musicale -->
-    <audio id="motionAlertSound" src="https://www.freesoundslibrary.com/wp-content/uploads/2018/01/Alert-Sound-Effect.mp3" preload="auto"></audio>
+    <div id="gameStatus" class="game-status">Prêt à jouer ?</div>
+    <div class="game-buttons">
+        <button id="startButton" disabled>Commencer le jeu</button>
+        <button id="playerActionButton">J'ai arrêté !</button>
+    </div>
 
     <script>
         const video = document.getElementById('videoElement');
         const canvas = document.getElementById('hiddenCanvas');
         const context = canvas.getContext('2d');
-        const statusDiv = document.getElementById('status');
-        const motionAlertSound = document.getElementById('motionAlertSound');
+        const gameStatusDiv = document.getElementById('gameStatus');
+        const startButton = document.getElementById('startButton');
+        const playerActionButton = document.getElementById('playerActionButton');
 
         // --- Configuration pour la détection de mouvement ---
         const pixelThreshold = 20; // Seuil de différence par composante de couleur (0-255)
                                    // Une valeur plus faible rend la détection plus sensible.
-        const changedPixelsPercentage = 0.05; // Pourcentage de pixels modifiés pour déclencher l'alerte (0.0 - 1.0)
+        const changedPixelsPercentage = 0.05; // Pourcentage de pixels modifiés pour déclencher la détection de mouvement (0.0 - 1.0)
                                               // Ex: 0.05 signifie 5% des pixels doivent changer.
+
+        // --- Variables de jeu ---
+        const GAME_STATES = {
+            IDLE: 'idle',           // En attente de démarrage
+            COUNTING: 'counting',   // Phase "1, 2, 3..." (mouvement autorisé)
+            STOP_PHASE: 'stop_phase', // Phase "Soleil !" (mouvement interdit, joueur doit appuyer)
+            GAME_OVER: 'game_over'  // Jeu terminé (gagné ou perdu)
+        };
+        let gameState = GAME_STATES.IDLE;
         let previousFrameData = null;
-        let alertActive = false;
-        const alertCooldown = 5000; // Cooldown de 5 secondes pour éviter les alertes répétées (en ms)
+        let motionDetectedInStopPhase = false; // Vrai si un mouvement a été détecté pendant la phase "Soleil !"
+        let playerPressedButton = false;        // Vrai si le joueur a appuyé sur le bouton pendant la phase "Soleil !"
+
+        const COUNTDOWN_PHRASES = ["1...", "2...", "3...", "Soleil !"];
+        const COUNTDOWN_SPEECH_DELAY = 1500; // Délai entre chaque phrase prononcée (en ms)
+        const STOP_PHASE_DURATION = 5000;    // Durée de la phase "Soleil !" (en ms)
+        const GAME_OVER_DISPLAY_DURATION = 3000; // Durée d'affichage du message de fin de jeu avant réinitialisation (en ms)
+
+        let countdownTimeoutId;
+        let stopPhaseTimeoutId;
+        let gameResetTimeoutId;
 
         // --- Demander l'accès à la caméra ---
         navigator.mediaDevices.getUserMedia({ video: true })
@@ -86,25 +154,157 @@
                     // Ajuster la taille du canvas à celle de la vidéo pour le traitement
                     canvas.width = video.videoWidth;
                     canvas.height = video.videoHeight;
-                    statusDiv.textContent = "Caméra active. Détection de mouvement en cours...";
-                    requestAnimationFrame(detectMotion);
+                    gameStatusDiv.textContent = "Caméra active. Prêt à commencer !";
+                    startButton.disabled = false; // Activer le bouton de démarrage une fois la caméra prête
+                    requestAnimationFrame(detectMotionLoop); // Démarrer la boucle de détection de mouvement
                 };
             })
             .catch(function(err) {
                 console.error("Erreur d'accès à la caméra: ", err);
-                statusDiv.textContent = "Erreur: Impossible d'accéder à la caméra. Vérifiez les permissions.";
-                statusDiv.classList.add('status-alert'); // Mettre le texte d'erreur en rouge
+                gameStatusDiv.textContent = "Erreur: Impossible d'accéder à la caméra. Vérifiez les permissions.";
+                gameStatusDiv.classList.add('status-alert');
+                startButton.disabled = true; // Désactiver le bouton de démarrage si la caméra ne peut pas être accédée
                 alert("Impossible d'accéder à la caméra. Veuillez vérifier les permissions de votre navigateur.");
             });
 
-        // --- Fonction de détection de mouvement ---
-        function detectMotion() {
+        // --- Helper pour la synthèse vocale ---
+        function speak(text, lang = 'fr-FR') {
+            if ('speechSynthesis' in window) {
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.lang = lang;
+                window.speechSynthesis.speak(utterance);
+            } else {
+                console.warn("Speech Synthesis API non supportée dans ce navigateur.");
+            }
+        }
+
+        // --- Démarrer le jeu ---
+        startButton.addEventListener('click', startGame);
+        playerActionButton.addEventListener('click', playerAction);
+
+        // --- Game Logic Functions ---
+        function resetGame(fullReset = true) {
+            clearTimeout(countdownTimeoutId);
+            clearTimeout(stopPhaseTimeoutId);
+            clearTimeout(gameResetTimeoutId);
+            if ('speechSynthesis' in window) {
+                speechSynthesis.cancel(); // Stop any ongoing speech
+            }
+
+            gameState = GAME_STATES.IDLE;
+            motionDetectedInStopPhase = false;
+            playerPressedButton = false;
+
+            gameStatusDiv.textContent = "Prêt à jouer ?";
+            gameStatusDiv.classList.remove('status-alert', 'status-win', 'status-counting');
+            video.classList.remove('game-over-border', 'game-win-border');
+            video.classList.add('default-border'); // Ensure default border is back
+
+            if (fullReset) {
+                startButton.style.display = 'block';
+                startButton.disabled = false;
+                playerActionButton.style.display = 'none';
+                playerActionButton.disabled = true;
+            }
+        }
+
+        function startGame() {
+            if (gameState !== GAME_STATES.IDLE && gameState !== GAME_STATES.GAME_OVER) return;
+
+            resetGame(false); // Clear game state, but keep buttons hidden for now
+            gameState = GAME_STATES.COUNTING;
+            startButton.disabled = true;
+            video.classList.remove('default-border'); // Remove default border during game
+            speakAndCount(0);
+        }
+
+        function speakAndCount(index) {
+            if (index < COUNTDOWN_PHRASES.length) {
+                const phrase = COUNTDOWN_PHRASES[index];
+                gameStatusDiv.textContent = phrase;
+                gameStatusDiv.classList.remove('status-alert', 'status-win');
+                gameStatusDiv.classList.add('status-counting');
+                speak(phrase);
+                countdownTimeoutId = setTimeout(() => speakAndCount(index + 1), COUNTDOWN_SPEECH_DELAY);
+            } else {
+                startStopPhase();
+            }
+        }
+
+        function startStopPhase() {
+            gameState = GAME_STATES.STOP_PHASE;
+            gameStatusDiv.textContent = "SOLEIL ! NE BOUGEZ PLUS ET APPUYEZ SUR LE BOUTON !";
+            gameStatusDiv.classList.remove('status-counting');
+            playerActionButton.style.display = 'block';
+            playerActionButton.disabled = false;
+            stopPhaseTimeoutId = setTimeout(() => checkGameEndOnTimeout("Vous n'avez pas appuyé à temps !"), STOP_PHASE_DURATION);
+        }
+
+        function playerAction() {
+            if (gameState !== GAME_STATES.STOP_PHASE) return;
+
+            playerPressedButton = true;
+            playerActionButton.disabled = true; // Disable button immediately after press
+            clearTimeout(stopPhaseTimeoutId); // Player acted, no need for timeout to trigger
+
+            if (!motionDetectedInStopPhase) {
+                endGame('win', "Bravo, vous avez gagné !");
+            } else {
+                endGame('lose', "Mouvement détecté ! Perdu !");
+            }
+        }
+
+        function checkGameEndOnTimeout(reason) {
+            playerActionButton.disabled = true; // Ensure button is disabled if timeout triggers
+            if (!playerPressedButton || motionDetectedInStopPhase) {
+                let loseMessage = reason;
+                if (playerPressedButton && motionDetectedInStopPhase) {
+                    loseMessage = "Mouvement détecté ! Perdu !";
+                } else if (!playerPressedButton && motionDetectedInStopPhase) {
+                    loseMessage = "Mouvement détecté et vous n'avez pas appuyé à temps ! Perdu !";
+                }
+                endGame('lose', loseMessage);
+            }
+        }
+
+        function endGame(result, message) {
+            clearTimeout(countdownTimeoutId);
+            clearTimeout(stopPhaseTimeoutId);
+            if ('speechSynthesis' in window) {
+                speechSynthesis.cancel(); // Stop any ongoing speech
+            }
+
+            gameState = GAME_STATES.GAME_OVER;
+            gameStatusDiv.textContent = message;
+            speak(message);
+
+            video.classList.remove('game-over-border', 'game-win-border', 'default-border'); // Clear previous
+            gameStatusDiv.classList.remove('status-alert', 'status-win', 'status-counting');
+
+            if (result === 'win') {
+                video.classList.add('game-win-border');
+                gameStatusDiv.classList.add('status-win');
+            } else {
+                video.classList.add('game-over-border');
+                gameStatusDiv.classList.add('status-alert');
+            }
+
+            playerActionButton.style.display = 'none'; // Hide player button
+            startButton.style.display = 'block'; // Show start button for next game
+            startButton.disabled = false;
+
+            gameResetTimeoutId = setTimeout(() => {
+                resetGame(true); // Full reset after a delay
+            }, GAME_OVER_DISPLAY_DURATION);
+        }
+
+        // --- Fonction de détection de mouvement (boucle) ---
+        function detectMotionLoop() {
             if (video.paused || video.ended) {
-                requestAnimationFrame(detectMotion);
+                requestAnimationFrame(detectMotionLoop);
                 return;
             }
 
-            // Dessiner la frame actuelle de la vidéo sur le canvas
             context.drawImage(video, 0, 0, canvas.width, canvas.height);
             const currentFrameData = context.getImageData(0, 0, canvas.width, canvas.height);
 
@@ -112,13 +312,11 @@
                 let changedPixelsCount = 0;
                 const totalPixels = canvas.width * canvas.height;
 
-                // Comparer les pixels de la frame actuelle avec la précédente
                 for (let i = 0; i < currentFrameData.data.length; i += 4) {
                     const rDiff = Math.abs(currentFrameData.data[i] - previousFrameData.data[i]);
                     const gDiff = Math.abs(currentFrameData.data[i + 1] - previousFrameData.data[i + 1]);
                     const bDiff = Math.abs(currentFrameData.data[i + 2] - previousFrameData.data[i + 2]);
 
-                    // Si la différence moyenne des couleurs est supérieure au seuil
                     if ((rDiff + gDiff + bDiff) / 3 > pixelThreshold) {
                         changedPixelsCount++;
                     }
@@ -126,45 +324,65 @@
 
                 const motionPercentage = changedPixelsCount / totalPixels;
 
-                // Si le pourcentage de pixels modifiés dépasse le seuil et qu'aucune alerte n'est active
-                if (motionPercentage > changedPixelsPercentage && !alertActive) {
-                    const alertMessage = "Tu as été vu !";
-
-                    // Alerte vocale
-                    if ('speechSynthesis' in window) {
-                        const utterance = new SpeechSynthesisUtterance(alertMessage);
-                        utterance.lang = 'fr-FR'; // Définir la langue sur le français
-                        window.speechSynthesis.speak(utterance);
-                    }
-
-                    // Alerte musicale
-                    if (motionAlertSound) {
-                        motionAlertSound.currentTime = 0; // Remettre le son au début
-                        motionAlertSound.play().catch(e => console.error("Erreur lors de la lecture du son d'alerte:", e));
-                    }
-
-                    // Mise à jour du statut et du visuel
-                    statusDiv.textContent = `MOUVEMENT DÉTECTÉ ! (${alertMessage})`;
-                    video.classList.add('alert-active');
-                    statusDiv.classList.add('status-alert');
-
-                    alertActive = true;
-                    // Réactiver les alertes après le cooldown
-                    setTimeout(() => {
-                        alertActive = false;
-                        video.classList.remove('alert-active');
-                        statusDiv.classList.remove('status-alert');
-                        statusDiv.textContent = "Caméra active. Détection de mouvement en cours..."; // Réinitialiser le statut
-                    }, alertCooldown);
+                // Detect motion only during the STOP_PHASE
+                if (gameState === GAME_STATES.STOP_PHASE && motionPercentage > changedPixelsPercentage && !motionDetectedInStopPhase) {
+                    motionDetectedInStopPhase = true;
+                    // Provide immediate visual and audio feedback for motion detected
+                    gameStatusDiv.textContent = "MOUVEMENT DÉTECTÉ ! Perdu !";
+                    gameStatusDiv.classList.remove('status-win', 'status-counting');
+                    gameStatusDiv.classList.add('status-alert');
+                    video.classList.remove('game-win-border', 'default-border');
+                    video.classList.add('game-over-border');
+                    speak("Mouvement détecté !");
+                    // The actual endGame call will be handled by playerAction or checkGameEndOnTimeout
+                    // which will check the motionDetectedInStopPhase flag.
                 }
             }
 
-            // Mettre à jour les données de la frame précédente pour la prochaine comparaison
             previousFrameData = currentFrameData;
-
-            // Continuer la boucle de détection
-            requestAnimationFrame(detectMotion);
+            requestAnimationFrame(detectMotionLoop);
         }
     </script>
 </body>
-</html>
+</html>}
+code2:README.md{### 1, 2, 3 Soleil - Jeu de Détection de Mouvement
+
+Ce projet implémente une version simplifiée du jeu "1, 2, 3 Soleil" en utilisant la caméra de l'utilisateur pour détecter les mouvements.
+
+#### Fonctionnalités :
+*   **Accès à la caméra :** Utilise le flux vidéo de la caméra de l'utilisateur.
+*   **Affichage vidéo :** Affiche le flux vidéo en temps réel.
+*   **Jeu "1, 2, 3 Soleil" :**
+    *   Le jeu commence par un compte à rebours vocal ("1...", "2...", "3..."). Durant cette phase, le mouvement est autorisé.
+    *   Après le compte à rebours, la phase "Soleil !" est annoncée vocalement. Pendant cette phase, le joueur doit **rester immobile et appuyer sur un bouton "J'ai arrêté !"** dans un temps imparti.
+    *   **Condition de victoire :** Le joueur gagne s'il appuie sur le bouton "J'ai arrêté !" pendant la phase "Soleil !" et qu'aucun mouvement n'a été détecté.
+    *   **Conditions de défaite :**
+        *   Un mouvement est détecté pendant la phase "Soleil !".
+        *   Le joueur n'appuie pas sur le bouton "J'ai arrêté !" avant la fin du temps imparti pendant la phase "Soleil !".
+*   **Détection de mouvement :** Compare en continu les images successives du flux vidéo pour détecter les changements significatifs.
+*   **Alertes vocales :** Annonce les différentes phases du jeu et les résultats (victoire/défaite).
+*   **Retours visuels :**
+    *   Le cadre de la vidéo change de couleur pour indiquer une victoire (vert) ou une défaite (rouge).
+    *   Le texte de statut met à jour la progression du jeu et les résultats.
+*   **Gestion du jeu :** Boutons pour démarrer le jeu et pour l'action du joueur, avec des états activés/désactivés appropriés.
+
+#### Comment l'utiliser :
+1.  Enregistrez le contenu du fichier `index.html` dans un fichier nommé `index.html`.
+2.  Ouvrez ce fichier `index.html` dans un navigateur web moderne (Chrome, Firefox, Edge, Safari).
+3.  Le navigateur vous demandera l'autorisation d'accéder à votre caméra. Vous devez l'autoriser pour que l'application fonctionne.
+4.  Une fois la caméra active, le bouton "Commencer le jeu" sera activé. Cliquez dessus pour démarrer.
+5.  Suivez les instructions vocales et textuelles à l'écran. Quand "Soleil !" est prononcé, arrêtez de bouger et cliquez rapidement sur le bouton "J'ai arrêté !".
+
+#### Configuration :
+Vous pouvez ajuster la sensibilité de la détection de mouvement et les timings du jeu en modifiant les variables JavaScript suivantes dans le fichier `index.html` :
+
+*   `pixelThreshold` : Seuil de différence par composante de couleur (0-255). Une valeur plus faible rend la détection plus sensible aux petits changements de couleur.
+*   `changedPixelsPercentage` : Pourcentage de pixels qui doivent être considérés comme "modifiés" pour déclencher une détection de mouvement. Une valeur plus faible rend la détection plus sensible aux mouvements étendus.
+*   `COUNTDOWN_SPEECH_DELAY` : Délai en millisecondes entre chaque phrase du compte à rebours vocal ("1...", "2...", "3...").
+*   `STOP_PHASE_DURATION` : Durée en millisecondes de la phase "Soleil !" pendant laquelle le joueur doit rester immobile et appuyer sur le bouton.
+*   `GAME_OVER_DISPLAY_DURATION` : Durée en millisecondes pendant laquelle le message de fin de jeu (victoire/défaite) est affiché avant que le jeu ne se réinitialise pour une nouvelle partie.
+
+#### Notes :
+*   **Synthèse vocale :** Le jeu utilise l'API Web Speech Synthesis pour les annonces vocales. Sa prise en charge peut varier selon les navigateurs et les systèmes d'exploitation.
+*   **Performances :** La détection de mouvement en temps réel peut être gourmande en ressources CPU, surtout sur des machines plus anciennes.
+*   **Sécurité :** Cette application accède à votre caméra. Assurez-vous de comprendre le code avant de l'utiliser, surtout si vous modifiez la source.
