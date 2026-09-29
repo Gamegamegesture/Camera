@@ -115,11 +115,20 @@
 
                 // Si le pourcentage de pixels modifiés dépasse le seuil et qu'aucune alerte n'est active
                 if (motionPercentage > changedPixelsPercentage && !alertActive) {
-                    alert("Tu as été vue !");
+                    if ('speechSynthesis' in window) {
+                        const utterance = new SpeechSynthesisUtterance("Mouvement détecté !");
+                        utterance.lang = 'fr-FR'; // Définir la langue sur le français
+                        window.speechSynthesis.speak(utterance);
+                        statusDiv.textContent = "MOUVEMENT DÉTECTÉ ! (Alerte vocale)";
+                    } else {
+                        statusDiv.textContent = "MOUVEMENT DÉTECTÉ ! (API vocale non supportée)";
+                        alert("Mouvement détecté !"); // Solution de repli pour les navigateurs sans synthèse vocale
+                    }
                     alertActive = true;
                     // Réactiver les alertes après le cooldown
                     setTimeout(() => {
                         alertActive = false;
+                        statusDiv.textContent = "Caméra active. Détection de mouvement en cours..."; // Réinitialiser le statut
                     }, alertCooldown);
                 }
             }
