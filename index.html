@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Détection de Mouvement par Caméra</title>
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            background-color: #f0f0f0;
+            font-family: Arial, sans-serif;
+            color: #333;
+        }
+        h1 {
+            color: #2c3e50;
+            margin-bottom: 10px;
+        }
+        p {
+            color: #34495e;
+            margin-bottom: 20px;
+        }
+        #videoElement {
+            width: 640px; /* Taille d'affichage de la vidéo */
+            height: 480px;
+            background-color: #000;
+            border: 3px solid #3498db;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        #hiddenCanvas {
+            display: none; /* Le canvas est utilisé pour le traitement, pas pour l'affichage */
+        }
+        .status-message {
+            margin-top: 10px;
+            font-weight: bold;
+            color: #e74c3c;
+        }
+    </style>
+</head>
+<body>
+    <h1>Détection de Mouvement</h1>
+    <p>Veuillez autoriser l'accès à votre caméra pour démarrer la détection.</p>
+    <video id="videoElement" autoplay muted></video>
+    <canvas id="hiddenCanvas"></canvas>
+    <div id="status" class="status-message"></div>
+
+    <script>
+        const video = document.getElementById('videoElement');
+        const canvas = document.getElementById('hiddenCanvas');
+        const context = canvas.getContext('2d');
+        const statusDiv = document.getElementById('status');
+
+        // --- Configuration pour la détection de mouvement ---
+        const pixelThreshold = 20; // Seuil de différence par composante de couleur (0-255)
+                                   // Une valeur plus faible rend la détection plus sensible.
+        const changedPixelsPercentage = 0.05; // Pourcentage de pixels modifiés pour déclencher l'alerte (0.0 - 1.0)
+                                              // Ex: 0.05 signifie 5% des pixels doivent changer.
+        let previousFrameData = null;
+        let alertActive = false;
+        const alertCooldown = 5000; // Cooldown de 5 secondes pour éviter les alertes répétées (en ms)
+
+        // --- Demander l'accès à la caméra ---
+        navigator.mediaDevices.getUserMedia({ video: true })
+            .then(function(stream) {
+                video.srcObject = stream;
+                video.onloadedmetadata = function() {
+                    video.play();
+                    // Ajuster la taille du canvas à celle de la vidéo pour le traitement
+                    canvas.width = video.videoWidth;
+                    canvas.height = video.videoHeight;
+                    statusDiv.textContent = "Caméra active. Détection de mouvement en cours...";
+                    requestAnimationFrame(detectMotion);
+                };
+            })
+            .catch(function(err) {
+                console.error("Erreur d'accès à la caméra: ", err);
+                statusDiv.textContent = "Erreur: Impossible d'accéder à la caméra. Vérifiez les permissions.";
+                alert("Impossible d'accéder à la caméra. Veuillez vérifier les permissions de votre navigateur.");
+            });
+
+        // --- Fonction de détection de mouvement ---
+        function detectMotion() {
+            if (video.paused || video.ended) {
+                requestAnimationFrame(detectMotion);
+                return;
+            }
+
+            // Dessiner la frame actuelle de la vidéo sur le canvas
+            context.drawImage(video, 0, 0, canvas.width, canvas.height);
+            const currentFrameData = context.getImageData(0, 0, canvas.width, canvas.height);
+
+            if (previousFrameData) {
+                let changedPixelsCount = 0;
+                const totalPixels = canvas.width * canvas.height;
+
+                // Comparer les pixels de la frame actuelle avec la précédente
+                for (let i = 0; i < currentFrameData.data.length; i += 4) {
+                    const rDiff = Math.abs(currentFrameData.data[i] - previousFrameData.data[i]);
+                    const gDiff = Math.abs(currentFrameData.data[i + 1] - previousFrameData.data[i + 1]);
+                    const bDiff = Math.abs(currentFrameData.data[i + 2] - previousFrameData.data[i + 2]);
+
+                    // Si la différence moyenne des couleurs est supérieure au seuil
+                    if ((rDiff + gDiff + bDiff) / 3 > pixelThreshold) {
+                        changedPixelsCount++;
+                    }
+                }
+
+                const motionPercentage = changedPixelsCount / totalPixels;
+
+                // Si le pourcentage de pixels modifiés dépasse le seuil et qu'aucune alerte n'est active
+                if (motionPercentage > changedPixelsPercentage && !alertActive) {
+                    alert("Tu as été vue !");
+                    alertActive = true;
+                    // Réactiver les alertes après le cooldown
+                    setTimeout(() => {
+                        alertActive = false;
+                    }, alertCooldown);
+                }
+            }
+
+            // Mettre à jour les données de la frame précédente pour la prochaine comparaison
+            previousFrameData = currentFrameData;
+
+            // Continuer la boucle de détection
+            requestAnimationFrame(detectMotion);
+        }
+    </script>
+</body>
+</html>
