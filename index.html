@@ -344,45 +344,4 @@
         }
     </script>
 </body>
-</html>}
-code2:README.md{### 1, 2, 3 Soleil - Jeu de Détection de Mouvement
-
-Ce projet implémente une version simplifiée du jeu "1, 2, 3 Soleil" en utilisant la caméra de l'utilisateur pour détecter les mouvements.
-
-#### Fonctionnalités :
-*   **Accès à la caméra :** Utilise le flux vidéo de la caméra de l'utilisateur.
-*   **Affichage vidéo :** Affiche le flux vidéo en temps réel.
-*   **Jeu "1, 2, 3 Soleil" :**
-    *   Le jeu commence par un compte à rebours vocal ("1...", "2...", "3..."). Durant cette phase, le mouvement est autorisé.
-    *   Après le compte à rebours, la phase "Soleil !" est annoncée vocalement. Pendant cette phase, le joueur doit **rester immobile et appuyer sur un bouton "J'ai arrêté !"** dans un temps imparti.
-    *   **Condition de victoire :** Le joueur gagne s'il appuie sur le bouton "J'ai arrêté !" pendant la phase "Soleil !" et qu'aucun mouvement n'a été détecté.
-    *   **Conditions de défaite :**
-        *   Un mouvement est détecté pendant la phase "Soleil !".
-        *   Le joueur n'appuie pas sur le bouton "J'ai arrêté !" avant la fin du temps imparti pendant la phase "Soleil !".
-*   **Détection de mouvement :** Compare en continu les images successives du flux vidéo pour détecter les changements significatifs.
-*   **Alertes vocales :** Annonce les différentes phases du jeu et les résultats (victoire/défaite).
-*   **Retours visuels :**
-    *   Le cadre de la vidéo change de couleur pour indiquer une victoire (vert) ou une défaite (rouge).
-    *   Le texte de statut met à jour la progression du jeu et les résultats.
-*   **Gestion du jeu :** Boutons pour démarrer le jeu et pour l'action du joueur, avec des états activés/désactivés appropriés.
-
-#### Comment l'utiliser :
-1.  Enregistrez le contenu du fichier `index.html` dans un fichier nommé `index.html`.
-2.  Ouvrez ce fichier `index.html` dans un navigateur web moderne (Chrome, Firefox, Edge, Safari).
-3.  Le navigateur vous demandera l'autorisation d'accéder à votre caméra. Vous devez l'autoriser pour que l'application fonctionne.
-4.  Une fois la caméra active, le bouton "Commencer le jeu" sera activé. Cliquez dessus pour démarrer.
-5.  Suivez les instructions vocales et textuelles à l'écran. Quand "Soleil !" est prononcé, arrêtez de bouger et cliquez rapidement sur le bouton "J'ai arrêté !".
-
-#### Configuration :
-Vous pouvez ajuster la sensibilité de la détection de mouvement et les timings du jeu en modifiant les variables JavaScript suivantes dans le fichier `index.html` :
-
-*   `pixelThreshold` : Seuil de différence par composante de couleur (0-255). Une valeur plus faible rend la détection plus sensible aux petits changements de couleur.
-*   `changedPixelsPercentage` : Pourcentage de pixels qui doivent être considérés comme "modifiés" pour déclencher une détection de mouvement. Une valeur plus faible rend la détection plus sensible aux mouvements étendus.
-*   `COUNTDOWN_SPEECH_DELAY` : Délai en millisecondes entre chaque phrase du compte à rebours vocal ("1...", "2...", "3...").
-*   `STOP_PHASE_DURATION` : Durée en millisecondes de la phase "Soleil !" pendant laquelle le joueur doit rester immobile et appuyer sur le bouton.
-*   `GAME_OVER_DISPLAY_DURATION` : Durée en millisecondes pendant laquelle le message de fin de jeu (victoire/défaite) est affiché avant que le jeu ne se réinitialise pour une nouvelle partie.
-
-#### Notes :
-*   **Synthèse vocale :** Le jeu utilise l'API Web Speech Synthesis pour les annonces vocales. Sa prise en charge peut varier selon les navigateurs et les systèmes d'exploitation.
-*   **Performances :** La détection de mouvement en temps réel peut être gourmande en ressources CPU, surtout sur des machines plus anciennes.
-*   **Sécurité :** Cette application accède à votre caméra. Assurez-vous de comprendre le code avant de l'utiliser, surtout si vous modifiez la source.
+</html>
