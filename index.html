@@ -28,10 +28,11 @@
             width: 640px; /* Taille d'affichage de la vidéo */
             height: 480px;
             background-color: #000;
-            border: 3px solid #3498db;
+            border: 3px solid #3498db; /* Bordure bleue par défaut */
             box-shadow: 0 4px 8px rgba(0,0,0,0.2);
             border-radius: 8px;
             margin-bottom: 20px;
+            transition: border-color 0.3s ease-in-out; /* Animation pour le changement de couleur */
         }
         #hiddenCanvas {
             display: none; /* Le canvas est utilisé pour le traitement, pas pour l'affichage */
@@ -39,7 +40,14 @@
         .status-message {
             margin-top: 10px;
             font-weight: bold;
-            color: #e74c3c;
+            color: #34495e; /* Couleur de texte par défaut */
+            transition: color 0.3s ease-in-out; /* Animation pour le changement de couleur */
+        }
+        .alert-active {
+            border-color: #e74c3c !important; /* Bordure rouge pour l'alerte */
+        }
+        .status-alert {
+            color: #e74c3c !important; /* Texte rouge pour l'alerte */
         }
     </style>
 </head>
@@ -50,11 +58,15 @@
     <canvas id="hiddenCanvas"></canvas>
     <div id="status" class="status-message"></div>
 
+    <!-- Élément audio pour l'alerte musicale -->
+    <audio id="motionAlertSound" src="https://www.freesoundslibrary.com/wp-content/uploads/2018/01/Alert-Sound-Effect.mp3" preload="auto"></audio>
+
     <script>
         const video = document.getElementById('videoElement');
         const canvas = document.getElementById('hiddenCanvas');
         const context = canvas.getContext('2d');
         const statusDiv = document.getElementById('status');
+        const motionAlertSound = document.getElementById('motionAlertSound');
 
         // --- Configuration pour la détection de mouvement ---
         const pixelThreshold = 20; // Seuil de différence par composante de couleur (0-255)
@@ -81,6 +93,7 @@
             .catch(function(err) {
                 console.error("Erreur d'accès à la caméra: ", err);
                 statusDiv.textContent = "Erreur: Impossible d'accéder à la caméra. Vérifiez les permissions.";
+                statusDiv.classList.add('status-alert'); // Mettre le texte d'erreur en rouge
                 alert("Impossible d'accéder à la caméra. Veuillez vérifier les permissions de votre navigateur.");
             });
 
@@ -116,19 +129,31 @@
                 // Si le pourcentage de pixels modifiés dépasse le seuil et qu'aucune alerte n'est active
                 if (motionPercentage > changedPixelsPercentage && !alertActive) {
                     const alertMessage = "Tu as été vu !";
+
+                    // Alerte vocale
                     if ('speechSynthesis' in window) {
                         const utterance = new SpeechSynthesisUtterance(alertMessage);
                         utterance.lang = 'fr-FR'; // Définir la langue sur le français
                         window.speechSynthesis.speak(utterance);
-                        statusDiv.textContent = `MOUVEMENT DÉTECTÉ ! (${alertMessage})`;
-                    } else {
-                        statusDiv.textContent = `MOUVEMENT DÉTECTÉ ! (API vocale non supportée: ${alertMessage})`;
-                        alert(alertMessage); // Solution de repli pour les navigateurs sans synthèse vocale
                     }
+
+                    // Alerte musicale
+                    if (motionAlertSound) {
+                        motionAlertSound.currentTime = 0; // Remettre le son au début
+                        motionAlertSound.play().catch(e => console.error("Erreur lors de la lecture du son d'alerte:", e));
+                    }
+
+                    // Mise à jour du statut et du visuel
+                    statusDiv.textContent = `MOUVEMENT DÉTECTÉ ! (${alertMessage})`;
+                    video.classList.add('alert-active');
+                    statusDiv.classList.add('status-alert');
+
                     alertActive = true;
                     // Réactiver les alertes après le cooldown
                     setTimeout(() => {
                         alertActive = false;
+                        video.classList.remove('alert-active');
+                        statusDiv.classList.remove('status-alert');
                         statusDiv.textContent = "Caméra active. Détection de mouvement en cours..."; // Réinitialiser le statut
                     }, alertCooldown);
                 }
