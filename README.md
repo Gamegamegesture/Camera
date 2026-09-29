@@ -7,7 +7,7 @@ Ce projet consiste en un simple fichier HTML qui utilise la caméra de l'utilisa
 *   Affiche le flux vidéo dans un élément `<video>`.
 *   Compare en continu les images successives du flux vidéo sur un `<canvas>` caché.
 *   Détecte le mouvement en calculant la différence entre les pixels des frames.
-*   Déclenche une **alerte vocale "Mouvement détecté !"** si un mouvement significatif est détecté. Un message d'alerte traditionnel est utilisé comme solution de repli si la synthèse vocale n'est pas prise en charge par le navigateur.
+*   Déclenche une **alerte vocale "Tu as été vu !"** si un mouvement significatif est détecté. Un message d'alerte traditionnel est utilisé comme solution de repli si la synthèse vocale n'est pas prise en charge par le navigateur.
 *   Comprend un mécanisme de "cooldown" pour éviter des alertes trop fréquentes.
 
 #### Comment l'utiliser :
